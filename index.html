@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nonogram Educativo</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.2.36/dist/vue.global.js"></script>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #f0f8ff;
+        }
+
+        .grid-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: 20px;
+            flex-direction: column;
+        }
+
+        table {
+            border-collapse: collapse;
+        }
+
+        td,
+        th {
+            width: 30px;
+            height: 30px;
+            border: 1px solid #000;
+            text-align: center;
+            cursor: pointer;
+        }
+
+        .filled {
+            background-color: #90ee90;
+        }
+
+        .empty {
+            background-color: #d3d3d3;
+        }
+
+        .wrong {
+            background-color: #ff6666;
+        }
+
+        .hint {
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
+        .hint-column span {
+            display: block;
+        }
+
+        .hint-left span {
+            display: inline-block;
+            margin-right: 5px;
+        }
+
+        button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #008CBA;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+
+        button:hover {
+            background-color: #005f73;
+        }
+
+        .controls {
+            margin-top: 10px;
+        }
+
+        .controls select {
+            font-size: 16px;
+            padding: 5px;
+        }
+
+        .status {
+            margin-top: 10px;
+            font-size: 18px;
+        }
+
+        canvas {
+            margin-top: 20px;
+            border: 1px solid black;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app">
+        <header>
+            <h1>Nonogram Educativo</h1>
+            <p>Resolva os desafios e aprenda enquanto joga!</p>
+            <p>Tempo: {{ timer }}s | Vidas: {{ lives }}</p>
+        </header>
+        <main>
+            <div class="controls">
+                <label for="gridSize">Escolha o tamanho da grade:</label>
+                <select id="gridSize" v-model="gridSize" @change="changeGrid">
+                    <option value="5">5x5</option>
+                    <option value="10">10x10</option>
+                    <option value="15">15x15</option>
+                </select>
+            </div>
+            <div class="grid-container">
+                <table>
+                    <tbody>
+                        <tr>
+                            <th></th>
+                            <th v-for="(hint, colIndex) in hints.columns" :key="colIndex" class="hint hint-column">
+                                <div v-for="num in hint.split('\n')" :key="num">{{ num }}</div>
+                            </th>
+                        </tr>
+                        <tr v-for="(row, rowIndex) in grid" :key="rowIndex">
+                            <th class="hint hint-left">
+                                <span v-for="num in hints.rows[rowIndex].split('\n')" :key="num">{{ num }}</span>
+                            </th>
+                            <td v-for="(cell, colIndex) in row" :key="colIndex"
+                                :class="{'filled': cell.filled, 'empty': !cell.filled, 'wrong': cell.wrong}"
+                                @click="toggleCell(rowIndex, colIndex)">
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <button @click="restartGame">Reiniciar</button>
+            <div v-if="gameOver">
+                <p>Você perdeu! Tente novamente.</p>
+            </div>
+            <div v-if="gameWon">
+                <p>Parabéns! Você venceu!</p>
+                <canvas id="pixelCanvas" :width="gridSize * 10" :height="gridSize * 10"></canvas>
+                <button @click="continueGame">Continuar Jogando</button>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const app = Vue.createApp({
+            data() {
+                return {
+                    gridSize: 5,
+                    grid: [],
+                    solution: [],
+                    hints: { rows: [], columns: [] },
+                    timer: 0,
+                    lives: 3,
+                    interval: null,
+                    gameOver: false,
+                    gameWon: false
+                };
+            },
+            methods: {
+                generateGrid(size) {
+                    return Array.from({ length: size }, () =>
+                        Array.from({ length: size }, () => ({ filled: false, wrong: false }))
+                    );
+                },
+                generateSolution(size) {
+                    return Array.from({ length: size }, () =>
+                        Array.from({ length: size }, () => Math.random() > 0.5)
+                    );
+                },
+                calculateHints() {
+                    this.hints.rows = this.solution.map(row =>
+                        row.map(cell => (cell ? 1 : 0)).join('').split('0').filter(x => x).map(x => x.length).join('\n') || '0'
+                    );
+                    this.hints.columns = this.solution[0].map((_, colIndex) =>
+                        this.solution.map(row => row[colIndex]).map(cell => (cell ? 1 : 0)).join('').split('0').filter(x => x).map(x => x.length).join('\n') || '0'
+                    );
+                },
+                changeGrid() {
+                    this.grid = this.generateGrid(parseInt(this.gridSize));
+                    this.solution = this.generateSolution(parseInt(this.gridSize));
+                    this.calculateHints();
+                    this.restartTimer();
+                    this.lives = 3;
+                    this.gameOver = false;
+                    this.gameWon = false;
+                },
+                restartGame() {
+                    this.changeGrid();
+                    this.gameWon = false; // Adicionado para garantir que a div desapareça
+                },
+                toggleCell(row, col) {
+                    if (this.solution[row][col]) {
+                        this.grid[row][col].filled = true;
+                    } else {
+                        this.grid[row][col].wrong = true;
+                        this.lives--;
+                        if (this.lives <= 0) {
+                            this.gameOver = true;
+                        }
+                    }
+                    if (this.checkWin()) {
+                        this.gameWon = true;
+                        this.generatePixelImage();
+                    }
+                },
+                checkWin() {
+                    return this.grid.every((row, rowIndex) => row.every((cell, colIndex) => cell.filled === this.solution[rowIndex][colIndex]));
+                },
+                generatePixelImage() {
+                    const canvas = document.getElementById('pixelCanvas');
+                    const ctx = canvas.getContext('2d');
+                    const size = 10;
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    this.grid.forEach((row, y) => {
+                        row.forEach((cell, x) => {
+                            if (cell.filled) {
+                                ctx.fillStyle = 'black';
+                                ctx.fillRect(x * size, y * size, size, size);
+                            }
+                        });
+                    });
+                }
+            },
+            mounted() {
+                this.changeGrid();
+            }
+        });
+        app.mount("#app");
+    </script>
+</body>
+
+</html>
