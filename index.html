@@ -94,6 +94,12 @@
             margin-top: 20px;
             border: 1px solid black;
         }
+
+        .marked {
+            color: red;
+            font-weight: bold;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 
@@ -127,8 +133,9 @@
                                 <span v-for="num in hints.rows[rowIndex].split('\n')" :key="num">{{ num }}</span>
                             </th>
                             <td v-for="(cell, colIndex) in row" :key="colIndex"
-                                :class="{'filled': cell.filled, 'empty': !cell.filled, 'wrong': cell.wrong}"
+                                :class="{'filled': cell.filled, 'empty': !cell.filled, 'wrong': cell.wrong, 'marked': cell.marked}"
                                 @click="toggleCell(rowIndex, colIndex)">
+                                <span v-if="cell.marked">X</span>
                             </td>
                         </tr>
                     </tbody>
@@ -217,8 +224,8 @@
                     this.resetGameState(true); // Mantém a mesma solução ao reiniciar
                 },
                 toggleCell(row, col) {
-                    if (this.lives <= 0 || this.gameOver || this.gameWon) {
-                        return; // Impede cliques se o jogo estiver terminado ou sem vidas
+                    if (this.lives <= 0 || this.gameOver || this.gameWon || this.grid[row][col].disabled) {
+                        return; // Impede cliques se o jogo estiver terminado, sem vidas ou se a célula estiver desativada
                     }
                     if (this.solution[row][col]) {
                         this.grid[row][col].filled = true;
@@ -230,10 +237,33 @@
                             this.stopTimer(); // Para o temporizador ao perder
                         }
                     }
+                    this.checkCompletion(row, col); // Verifica se a linha ou coluna foi completada
                     if (this.checkWin()) {
                         this.gameWon = true;
                         this.stopTimer(); // Para o temporizador ao vencer
                         this.generatePixelImage();
+                    }
+                },
+                checkCompletion(row, col) {
+                    // Verifica se a linha foi completada
+                    if (this.grid[row].every((cell, colIndex) => cell.filled === this.solution[row][colIndex])) {
+                        this.grid[row].forEach(cell => {
+                            if (!cell.filled) {
+                                cell.disabled = true;
+                                cell.marked = true; // Marca com "X"
+                            }
+                        });
+                    }
+
+                    // Verifica se a coluna foi completada
+                    const columnCompleted = this.grid.every((row, rowIndex) => row[col].filled === this.solution[rowIndex][col]);
+                    if (columnCompleted) {
+                        this.grid.forEach(row => {
+                            if (!row[col].filled) {
+                                row[col].disabled = true;
+                                row[col].marked = true; // Marca com "X"
+                            }
+                        });
                     }
                 },
                 checkWin() {
