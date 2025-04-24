@@ -168,9 +168,13 @@
                     );
                 },
                 generateSolution(size) {
-                    return Array.from({ length: size }, () =>
-                        Array.from({ length: size }, () => Math.random() > 0.5)
-                    );
+                    let solution;
+                    do {
+                        solution = Array.from({ length: size }, () =>
+                            Array.from({ length: size }, () => Math.random() > 0.5)
+                        );
+                    } while (solution.flat().every(cell => !cell)); // Garante que pelo menos uma célula esteja preenchida
+                    return solution;
                 },
                 calculateHints() {
                     this.hints.rows = this.solution.map(row =>
@@ -180,20 +184,42 @@
                         this.solution.map(row => row[colIndex]).map(cell => (cell ? 1 : 0)).join('').split('0').filter(x => x).map(x => x.length).join('\n') || '0'
                     );
                 },
-                changeGrid() {
+                restartTimer() {
+                    if (this.interval) {
+                        clearInterval(this.interval);
+                    }
+                    this.timer = 0;
+                    this.interval = setInterval(() => {
+                        this.timer++;
+                    }, 1000);
+                },
+                stopTimer() {
+                    if (this.interval) {
+                        clearInterval(this.interval);
+                        this.interval = null;
+                    }
+                },
+                resetGameState(keepSolution = false) {
+                    if (!keepSolution) {
+                        this.solution = this.generateSolution(parseInt(this.gridSize)); // Gera nova solução apenas se necessário
+                    }
                     this.grid = this.generateGrid(parseInt(this.gridSize));
-                    this.solution = this.generateSolution(parseInt(this.gridSize));
                     this.calculateHints();
                     this.restartTimer();
                     this.lives = 3;
                     this.gameOver = false;
                     this.gameWon = false;
                 },
+                changeGrid() {
+                    this.resetGameState(); // Gera nova solução ao mudar o tamanho da grade
+                },
                 restartGame() {
-                    this.changeGrid();
-                    this.gameWon = false; // Adicionado para garantir que a div desapareça
+                    this.resetGameState(true); // Mantém a mesma solução ao reiniciar
                 },
                 toggleCell(row, col) {
+                    if (this.lives <= 0 || this.gameOver || this.gameWon) {
+                        return; // Impede cliques se o jogo estiver terminado ou sem vidas
+                    }
                     if (this.solution[row][col]) {
                         this.grid[row][col].filled = true;
                     } else {
@@ -201,10 +227,12 @@
                         this.lives--;
                         if (this.lives <= 0) {
                             this.gameOver = true;
+                            this.stopTimer(); // Para o temporizador ao perder
                         }
                     }
                     if (this.checkWin()) {
                         this.gameWon = true;
+                        this.stopTimer(); // Para o temporizador ao vencer
                         this.generatePixelImage();
                     }
                 },
@@ -224,10 +252,16 @@
                             }
                         });
                     });
-                }
+                },
+                continueGame() {
+                    this.resetGameState();
+                },
             },
             mounted() {
-                this.changeGrid();
+                this.resetGameState(); // Usa o método centralizado para inicializar o jogo
+            },
+            beforeUnmount() {
+                this.stopTimer(); // Garante que o temporizador seja limpo ao desmontar o componente
             }
         });
         app.mount("#app");
